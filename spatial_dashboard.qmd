@@ -1,0 +1,126 @@
+---
+title: "Mephyston Study areas"
+format: dashboard
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(leaflet.extras)
+```
+
+```{r}
+v <- st_read("data/geoinfo/guadarrama_dec_bbox.shp", quiet=TRUE)
+valdemaqueda <- v |> filter(site == "valdemaqueda")
+valsain <- v |> filter(str_detect(site, "valsain"))
+
+pies_valdemaqueda_csv <- read_delim("data/geoinfo/gps_pies_valdemaqueda_decaimiento.csv", delim = ";")
+pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat"))
+```
+
+```{r}
+l8 <- st_read("data/geoinfo/grid/l8.shp", quiet=TRUE)
+s2 <- st_read("data/geoinfo/grid/s2.shp", quiet=TRUE)
+mod13 <- st_read("data/geoinfo/grid/mod13.shp", quiet=TRUE)
+```
+
+
+```{r}
+maxzoom <- 30
+
+mymap <- leaflet(options = leafletOptions(maxZoom = maxzoom)) |>
+  addProviderTiles("Esri.WorldImagery", group = "Satellite") |> 
+  addWMSTiles("http://www.ign.es/wms-inspire/pnoa-ma",
+    layers = "OI.OrthoimageCoverage",
+    group = "PNOA Máxima Actualidad",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE,
+      maxZoom = maxzoom),
+    attribution = 'PNOA cedido por © <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
+  ) |> 
+  addWMSTiles("https://www.ign.es/wms/pnoa-historico?",
+    layers = "AMS_1956-1957",
+    group = "Vuelo Americano (Serie B, 1956-1957)",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE,
+      maxZoom = maxzoom),
+    attribution = 'PNOA cedido por © <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
+  ) |> 
+  addPolygons(data = l8,
+              group= 'Landsat Grid',
+              fillOpacity = 0, 
+              color = "black",
+              stroke = TRUE,
+              weight = 0.7) |> 
+  addPolygons(data = s2,
+              group= 'Sentinel Grid',
+              fillOpacity = 0, 
+              color = "blue",
+              stroke = TRUE,
+              weight = 0.7) 
+```
+
+
+
+# Valsaín
+
+```{r}
+
+myext <- st_bbox(valsain) |> as.vector()
+
+mymap |> 
+  fitBounds(myext[1], myext[2], myext[3], myext[4]) |> 
+  addPolygons(data = valsain,
+              group= 'Valsain',
+              fillOpacity = 0, 
+              color = "red",
+              stroke = TRUE) |> 
+  addLayersControl(
+    position = "bottomright",
+    baseGroups = c("Basemap", "PNOA Máxima Actualidad", "Vuelo Americano (Serie B, 1956-1957)"),
+    overlayGroups = c("Valsain", "Landsat Grid", "Sentinel Grid"), 
+    options = layersControlOptions(collapsed = TRUE)
+  ) |> 
+  hideGroup("Landsat Grid") |> 
+  hideGroup("Sentinel Grid")
+  
+```
+
+
+# Valdemaqueda
+```{r}
+myext <- st_bbox(valdemaqueda) |> as.vector()
+
+mymap |> 
+  fitBounds(myext[1], myext[2], myext[3], myext[4]) |> 
+  addPolygons(data = valdemaqueda,
+              group= 'Valdemaqueda',
+              fillOpacity = 0, 
+              color = "red",
+              stroke = TRUE) |>
+  addAwesomeMarkers(pies_valdemaqueda_csv, lat = pies_valdemaqueda_csv$lat, lng = pies_valdemaqueda_csv$lon) |> 
+  addLayersControl(
+    position = "bottomright",
+    baseGroups = c("Basemap", "PNOA Máxima Actualidad", "Vuelo Americano (Serie B, 1956-1957)"),
+    overlayGroups = c("Valdemaqueda", "Landsat Grid", "Sentinel Grid"), 
+    options = layersControlOptions(collapsed = TRUE)
+  ) |> 
+  hideGroup("Landsat Grid") |> 
+  hideGroup("Sentinel Grid")
+  
+```
+
+
+
+
