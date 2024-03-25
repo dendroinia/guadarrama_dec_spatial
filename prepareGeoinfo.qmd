@@ -1,0 +1,120 @@
+---
+title: "Prepare geoinfo"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## Generate grids from Satellite
+
+- We downloaded images from Landasat 8, Sentinel 2 and MOD13Q1 to explore the grids generated.
+- We used a custom GEE script (see [get_grid](https://code.earthengine.google.com/1a14c2fc9110784c1423e24576135be2)) and donwload GeoTiffs for each one of the satellites used. The geoTiffs were stored at '/data/geoinfo/grid/' 
+
+```{r}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(sf)
+library(terra)
+```
+
+- Generate custom wrapper to prepare polygons of the grids
+
+```{r}
+grid_generate <- function(v, raster_path){ 
+  
+  valdemaqueda <- v |> filter(site == "valdemaqueda")
+  valsain <- v |> filter(str_detect(site, "valsain"))
+  
+  r <- terra::rast(raster_path)
+  
+  r_valdemaqueda <- crop(r, valdemaqueda) |> terra::as.polygons(aggregate=FALSE)
+  r_valsain <- crop(r, valsain) |> terra::as.polygons(aggregate=FALSE)
+  
+  output <- rbind(r_valdemaqueda, r_valsain)
+  
+  return(output)
+}
+```
+
+
+```{r}
+g <- st_read("data/geoinfo/guadarrama_dec_bbox.shp")
+```
+
+
+```{r}
+#| eval: false
+l8 <- grid_generate(v = g, raster_path = "data/geoinfo/grid/grid_landsat8_mephyston.tiff")
+writeVector(l8, "data/geoinfo/grid/l8.shp", overwrite=TRUE)
+
+s2 <- grid_generate(v = g, raster_path = "data/geoinfo/grid/grid_sentinel2_mephyston.tiff")
+writeVector(s2, "data/geoinfo/grid/s2.shp", overwrite=TRUE)
+
+mod13 <- grid_generate(v = g, raster_path = "data/geoinfo/grid/grid_modis13q1_mephyston.tiff")
+writeVector(mod13, "data/geoinfo/grid/mod13.shp", overwrite=TRUE)
+
+```
+
+
+## Limits of Natural Protected areas 
+### Get limits of PNac Guadarrama
+
+- [Data source](https://www.miteco.gob.es/es/parques-nacionales-oapn/red-parques-nacionales/sig/parques-nacionales.html)
+
+```{r}
+#| eval: false
+pn <- st_read("/Users/ajpelu/Downloads/limites_red/desc_Red_PN_LIM_Enero2023/Limite_PN_p_b.shp")
+
+gnac <- pn |> 
+  filter(str_detect(d_Nom_Parq, "Guadarrama")) |> # Ojo existen 2, uno es la zona de Especial Proteccion
+  filter(d_Nom_Parq == "Parque Nacional de la Sierra de Guadarrama")
+
+st_write(gnac, "data/geoinfo/pnac_guadarrama_limites.shp")
+
+```
+
+
+### Get limits of Pnat Guadarrama (Castilla y León)
+- [Data source](https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/la-red-espacios-naturales-cyl/1284687312196)
+
+```{r}
+#| eval: false
+
+cl <- st_read("/Users/ajpelu/Downloads/ps.ren_cyl/ps.ren_cyl.shp")
+
+gnat <- cl |> 
+  filter(str_detect(nombre, "Guadarrama")) |> 
+  filter(nombre == "Sierra Norte de Guadarrama") 
+
+st_write(gnat, "data/geoinfo/pnat_guadarrama_limites.shp")
+```
+
+### ZEPAS 
+- [Data source](https://www.miteco.gob.es/es/biodiversidad/servicios/banco-datos-naturaleza/informacion-disponible/rednatura_2000_desc.html)
+
+```{r}
+#| eval: false
+
+# Según esto https://sig.mapama.gob.es/Docs/PDFServicios/RedNatura2000.pdf A=ZEPA, B=ZEC/LIC C= ZEC/LIC + ZEPA
+
+
+rnat <- st_read("/Users/ajpelu/Downloads/rn2000-shp/Es_Lic_SCI_Zepa_SPA_Medalpatl_202401.shp") |> 
+  filter(AC %in% c("CASTILLA Y LEÓN", "COMUNIDAD DE MADRID")) |> 
+  mutate(tipo_name = case_when(
+    TIPO == "A" ~ "ZEPA", 
+    TIPO == "B" ~ "ZEC/LIC", 
+    TIPO == "C" ~ "ZEPA y ZEC/LIC")
+    )
+    
+st_write(rnat, "data/geoinfo/red_natura.shp")
+```
+
+
+
+
+
+
+
+
