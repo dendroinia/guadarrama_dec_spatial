@@ -6,8 +6,6 @@ editor_options:
 ---
 
 
-
-
 ```{r}
 #| echo: false
 #| message: false
@@ -25,6 +23,19 @@ valsain <- v |> filter(str_detect(site, "valsain"))
 
 pies_valdemaqueda_csv <- read_delim("data/geoinfo/gps_pies_valdemaqueda_decaimiento.csv", delim = ";")
 pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat"))
+
+
+geo_valsain <- read_delim("data/geoinfo/gps_pies_valsain.csv", delim = ";")
+
+pies_valsain <- st_as_sf((geo_valsain |> filter(tipo == "tree")), 
+                         coords = c("lon", "lat"), crs = st_crs(4326))
+
+meteo_valsain <-  st_as_sf((geo_valsain |> filter(tipo == "meteo")), 
+                         coords = c("lon", "lat"), crs = st_crs(4326)) |> 
+  mutate(subtype = case_when(
+    name == "EstacionMeteo" ~ "Soil Temp", 
+    TRUE ~ "Weather Station"
+  ))
 ```
 
 ```{r}
@@ -77,6 +88,31 @@ mymap <- leaflet(options = leafletOptions(maxZoom = maxzoom)) |>
 
 ```{r}
 
+colores_parcela <- awesomeIconList(
+  "Decaimiento" = makeAwesomeIcon(
+    icon = "tree",
+    markerColor = "red",
+    library = "fa"
+  ),
+  "Sanos" = makeAwesomeIcon(
+    icon = "tree",
+    markerColor = "green",
+    library = "fa"
+  ))
+
+colores_meteo <- awesomeIconList(
+  "Soil Temp" = makeAwesomeIcon(
+    icon = "temperature-half",
+    markerColor = "blue",
+    library = "fa"
+  ),
+  "Weather Station" = makeAwesomeIcon(
+    icon = "tower-broadcast",
+    markerColor = "white",
+    library = "fa"
+  ))
+
+
 myext <- st_bbox(valsain) |> as.vector()
 
 mymap |> 
@@ -86,10 +122,18 @@ mymap |>
               fillOpacity = 0, 
               color = "red",
               stroke = TRUE) |> 
+  addAwesomeMarkers(data = pies_valsain, 
+                    group = "Árboles",
+                    label = ~name, 
+                    icon = ~ colores_parcela[parcela]) |> 
+  addAwesomeMarkers(data = meteo_valsain, 
+                    group = "Climate Stations",
+                    label = ~name, 
+                    icon = ~colores_meteo[subtype]) |> 
   addLayersControl(
     position = "bottomright",
     baseGroups = c("Basemap", "PNOA Máxima Actualidad", "Vuelo Americano (Serie B, 1956-1957)"),
-    overlayGroups = c("Valsain", "Landsat Grid", "Sentinel Grid"), 
+    overlayGroups = c("Árboles","Climate Stations", "Valsain", "Landsat Grid", "Sentinel Grid"), 
     options = layersControlOptions(collapsed = TRUE)
   ) |> 
   hideGroup("Landsat Grid") |> 
