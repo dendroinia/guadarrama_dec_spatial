@@ -22,8 +22,25 @@ valdemaqueda <- v |> filter(site == "valdemaqueda")
 valsain <- v |> filter(str_detect(site, "valsain"))
 
 pies_valdemaqueda_csv <- read_delim("data/geoinfo/gps_pies_valdemaqueda_decaimiento.csv", delim = ";")
-pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat"))
+pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat")) |> 
+  mutate(sp = case_when(
+    tipo == "enebro" ~ "Juniperus",
+    str_detect(tipo, "pinaster") ~ "Pinus pinaster", 
+    str_detect(tipo, "pinea") ~ "Pinus pinea",
+    tipo == "encina" ~ "Quercus ilex"
+  )) |> 
+  mutate(status = case_when(
+    str_detect(tipo, "decaimiento") ~ "Decaimiento",
+    str_detect(tipo, "contro") ~ "Sanos") 
+  )
 
+
+pinaster_valdemaqueda <- pies_valdemaqueda |> 
+  filter(sp == "Pinus pinaster")
+
+pinea_valdemaqueda <- pies_valdemaqueda |> 
+  filter(sp == "Pinus pinea") |> 
+  mutate(status = ifelse(is.na(status), "Sanos", status))
 
 geo_valsain <- read_delim("data/geoinfo/gps_pies_valsain.csv", delim = ";")
 
@@ -68,6 +85,15 @@ mymap <- leaflet(options = leafletOptions(maxZoom = maxzoom)) |>
       maxZoom = maxzoom),
     attribution = 'PNOA cedido por © <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
   ) |> 
+  addWMSTiles("https://www.ign.es/wms/pnoa-historico?",
+    layers = "Interministerial_1973-1986",
+    group = "Interministerial 1973 - 1986",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE,
+      maxZoom = maxzoom),
+    attribution = 'PNOA cedido por © <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
+  ) |> 
   addPolygons(data = l8,
               group= 'Landsat Grid',
               fillOpacity = 0, 
@@ -78,6 +104,12 @@ mymap <- leaflet(options = leafletOptions(maxZoom = maxzoom)) |>
               group= 'Sentinel Grid',
               fillOpacity = 0, 
               color = "blue",
+              stroke = TRUE,
+              weight = 0.7) |> 
+  addPolygons(data = mod13,
+              group= 'MOD13Q Grid',
+              fillOpacity = 0, 
+              color = "white",
               stroke = TRUE,
               weight = 0.7) 
 ```
@@ -132,12 +164,14 @@ mymap |>
                     icon = ~colores_meteo[subtype]) |> 
   addLayersControl(
     position = "bottomright",
-    baseGroups = c("Basemap", "PNOA Máxima Actualidad", "Vuelo Americano (Serie B, 1956-1957)"),
-    overlayGroups = c("Árboles","Climate Stations", "Valsain", "Landsat Grid", "Sentinel Grid"), 
+    baseGroups = c("Basemap", "PNOA Máxima Actualidad", 
+                  "Interministerial 1973 - 1986", "Vuelo Americano (Serie B, 1956-1957)"),
+    overlayGroups = c("Árboles","Climate Stations", "Valsain", "MOD13Q Grid", "Landsat Grid", "Sentinel Grid"), 
     options = layersControlOptions(collapsed = TRUE)
   ) |> 
   hideGroup("Landsat Grid") |> 
-  hideGroup("Sentinel Grid")
+  hideGroup("Sentinel Grid") |> 
+  hideGroup("MOD13Q Grid")
   
 ```
 
@@ -153,15 +187,24 @@ mymap |>
               fillOpacity = 0, 
               color = "red",
               stroke = TRUE) |>
-  addAwesomeMarkers(pies_valdemaqueda_csv, lat = pies_valdemaqueda_csv$lat, lng = pies_valdemaqueda_csv$lon) |> 
-  addLayersControl(
+    addAwesomeMarkers(data = pinaster_valdemaqueda, 
+                    group = "P. pinaster",
+                    label = ~numero, 
+                    icon = ~ colores_parcela[status]) |> 
+  addAwesomeMarkers(data = pinea_valdemaqueda, 
+                    group = "P. pinea",
+                    label = ~numero, 
+                    icon = ~ colores_parcela[status]) |> 
+   addLayersControl(
     position = "bottomright",
-    baseGroups = c("Basemap", "PNOA Máxima Actualidad", "Vuelo Americano (Serie B, 1956-1957)"),
-    overlayGroups = c("Valdemaqueda", "Landsat Grid", "Sentinel Grid"), 
+    baseGroups = c("Basemap", "PNOA Máxima Actualidad", 
+                  "Interministerial 1973 - 1986", "Vuelo Americano (Serie B, 1956-1957)"),
+    overlayGroups = c("P. pinaster","P. pinea","Climate Stations", "Valsain", "MOD13Q Grid", "Landsat Grid", "Sentinel Grid"), 
     options = layersControlOptions(collapsed = TRUE)
   ) |> 
   hideGroup("Landsat Grid") |> 
-  hideGroup("Sentinel Grid")
+  hideGroup("Sentinel Grid") |> 
+  hideGroup("MOD13Q Grid")
   
 ```
 
