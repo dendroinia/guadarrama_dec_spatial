@@ -85,8 +85,7 @@ w <- bind_rows(
   (geo_valsain_sanos),
   (pinaster_valdemaqueda))
 
-st_write(w, "data/geoinfo/pies_pinaster_sylvestris_guadarrama.shp", append = FALSE, quiet = FALSE)
-
+st_write(w, "data/geoinfo/pies_pinaster_sylvestris_guadarrama.shp", append = FALSE, quiet = TRUE)
 
 pies_valsain <- w |> filter(sp == "Pinus sylvestris")
 ```
