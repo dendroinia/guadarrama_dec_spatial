@@ -20,6 +20,10 @@ library(leaflet.extras)
 v <- st_read("data/geoinfo/guadarrama_dec_bbox.shp", quiet=TRUE)
 valdemaqueda <- v |> filter(site == "valdemaqueda")
 valsain <- v |> filter(str_detect(site, "valsain"))
+```
+
+```{r}
+### Valdemaqueda 
 
 pies_valdemaqueda_csv <- read_delim("data/geoinfo/gps_pies_valdemaqueda_decaimiento.csv", delim = ";")
 pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat")) |> 
@@ -34,18 +38,29 @@ pies_valdemaqueda <- st_as_sf(pies_valdemaqueda_csv, coords = c("lon", "lat")) |
     str_detect(tipo, "contro") ~ "Sanos") 
   )
 
+st_crs(pies_valdemaqueda) <- 4326
 
 pinaster_valdemaqueda <- pies_valdemaqueda |> 
-  filter(sp == "Pinus pinaster")
+  filter(sp == "Pinus pinaster") |> 
+  mutate(name = case_when(
+    status == "Decaimiento" ~ paste0("M", sprintf("%02d", numero)), 
+    status == "Sanos" ~ paste0("S", sprintf("%02d", numero))
+  ))
 
 pinea_valdemaqueda <- pies_valdemaqueda |> 
   filter(sp == "Pinus pinea") |> 
   mutate(status = ifelse(is.na(status), "Sanos", status))
+```
 
+
+```{r}
 geo_valsain <- read_delim("data/geoinfo/gps_pies_valsain.csv", delim = ";")
 
-pies_valsain <- st_as_sf((geo_valsain |> filter(tipo == "tree")), 
+pies_valsain_old <- st_as_sf((geo_valsain |> filter(tipo == "tree")), 
                          coords = c("lon", "lat"), crs = st_crs(4326))
+
+geo_valsain_sanos<- read_delim("data/geoinfo/gps_valsain_sylvestris_sanos.csv") |>
+  st_as_sf(coords = c("X", "Y"), crs = st_crs(4326))
 
 meteo_valsain <-  st_as_sf((geo_valsain |> filter(tipo == "meteo")), 
                          coords = c("lon", "lat"), crs = st_crs(4326)) |> 
@@ -53,7 +68,30 @@ meteo_valsain <-  st_as_sf((geo_valsain |> filter(tipo == "meteo")),
     name == "EstacionMeteo" ~ "Soil Temp", 
     TRUE ~ "Weather Station"
   ))
+
 ```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+w <- bind_rows(
+  (pies_valsain_old |> 
+  filter(tipo == "tree") |> 
+  mutate(sp = "Pinus sylvestris") |> 
+  rename(numero = ID, status = parcela) |> 
+  dplyr::select(-time)), 
+  (geo_valsain_sanos),
+  (pinaster_valdemaqueda))
+
+st_write(w, "data/geoinfo/pies_pinaster_sylvestris_guadarrama.shp", append = FALSE, quiet = FALSE)
+
+
+pies_valsain <- w |> filter(sp == "Pinus sylvestris")
+```
+
+
 
 ```{r}
 l8 <- st_read("data/geoinfo/grid/l8.shp", quiet=TRUE)
@@ -157,7 +195,7 @@ mymap |>
   addAwesomeMarkers(data = pies_valsain, 
                     group = "Árboles",
                     label = ~name, 
-                    icon = ~ colores_parcela[parcela]) |> 
+                    icon = ~ colores_parcela[status]) |> 
   addAwesomeMarkers(data = meteo_valsain, 
                     group = "Climate Stations",
                     label = ~name, 
